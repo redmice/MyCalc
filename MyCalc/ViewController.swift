@@ -103,7 +103,11 @@ class ViewController: UIViewController {
             brain.performOperation(matemathicalSymbol)
         }
         displayValue = brain.result
-        operationHistoryDisplay!.text = brain.description
+        if brain.isPartialResult {
+            operationHistoryDisplay!.text = brain.description + " ..."
+        } else {
+            operationHistoryDisplay!.text = brain.description + " ="
+        }
     }
     
     /**

@@ -17,7 +17,7 @@ class CalculatorBrain {
  
      - parameter Operand: Operand introduced in the calculator
      - parameter UnaryOperation: Calculator unary operation: Operation string, unary function
-     - parameter BinaryOperation: Calculator binary operation: Operation string, unary function
+     - parameter BinaryOperation: Calculator binary operation: Operation string, binary function
     */
     private enum Op: CustomStringConvertible
     {
@@ -60,7 +60,7 @@ class CalculatorBrain {
         learnOp(Op.BinaryOperation("÷", /) { $0  + " ÷ " +  $1 } )
         learnOp(Op.BinaryOperation("+", +) { $0 + " + " + $1 } )
         learnOp(Op.BinaryOperation("−", -) { $0 + " − " + $1 } )
-        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }) { $1 + " √ " + $0 })
+        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }) { $1 + "√ " + $0 })
         learnOp(Op.UnaryOperation("x²", { pow ( $0, 2 ) }) { "\($0)^2" })
         learnOp(Op.UnaryOperation("x³", { pow ( $0, 3 ) }) { "\($0)^3" })
         learnOp(Op.BinaryOperation("xʸ", { pow ( $0, $1 ) }) { $0 + "^" + $1 })
@@ -96,12 +96,13 @@ class CalculatorBrain {
         if let operation = knownOperations[symbol] {
             switch operation {
             case .Constant(let value):
-                accumulator = value
-                description += symbol + " "
+                setOperand(value)
+                displayBuffer += symbol + " "
             case .UnaryOperation(_, let function, let formatter):
-                description += formatter (accumulator)
+                displayBuffer += formatter (accumulator)
                 accumulator = function(accumulator)
             case .BinaryOperation(_, let function, let formatter):
+                isPartialResult = true
                 if newOperandEntered {          //New operand available, regular process
                     executePendingOperation()
                     pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator, formatFunction: formatter)
@@ -109,11 +110,13 @@ class CalculatorBrain {
                 }
                 else {                          //No new operand introduced, the user changed mind and press another operation button
                     if pendingOperation != nil {
-                        pendingOperation?.binaryFunction = function     //Just update the operation and keep waiting for the new operand
+                        pendingOperation!.binaryFunction = function     //Just update the operation and keep waiting for the new operand
+                        pendingOperation!.formatFunction = formatter
                     }
                 }
                 
             case .Equals:
+                isPartialResult = false
                 executePendingOperation()
             }
         }
@@ -121,15 +124,10 @@ class CalculatorBrain {
     
     private func executePendingOperation () {
         if pendingOperation != nil {
-            description += pendingOperation!.formatFunction("\(pendingOperation!.firstOperand)", "\(accumulator)")
+            displayBuffer += pendingOperation!.formatFunction("\(pendingOperation!.firstOperand)", "\(accumulator)")
             accumulator = pendingOperation!.binaryFunction(pendingOperation!.firstOperand, accumulator)
             pendingOperation = nil
-            description += " ="
         }
-        else {
-            //description += pendingOperation!.formatFunction("\(pendingOperation!.firstOperand)", "...")
-        }
-        isPartialResult = false
     }
     
     /**
@@ -140,7 +138,9 @@ class CalculatorBrain {
         accumulator = 0.0
         pendingOperation = nil
         newOperandEntered = false
-        description = " "
+        isPartialResult = false
+        displayBuffer = " "
+        displayPending = ""
     }
     
     var result: Double{
@@ -149,12 +149,18 @@ class CalculatorBrain {
         }
     }
     
+    var description: String {
+        get {
+            return displayBuffer
+        }
+    }
+    
     /** 
      True when the user has just entered a new operand
      */
     private var newOperandEntered = false
     
-    private var isPartialResult = false
+    var isPartialResult = false
     
     private var pendingOperation: PendingBinaryOperationInfo?
     
@@ -167,5 +173,6 @@ class CalculatorBrain {
         var formatFunction: (String, String) -> String
     }
     
-    var description = " "
+    private var displayBuffer = " "
+    private var displayPending = ""
 }
