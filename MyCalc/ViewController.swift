@@ -103,11 +103,6 @@ class ViewController: UIViewController {
             brain.performOperation(matemathicalSymbol)
         }
         displayValue = brain.result
-        if brain.isPartialResult {
-            operationHistoryDisplay!.text = brain.description + " ..."
-        } else {
-            operationHistoryDisplay!.text = brain.description + " ="
-        }
     }
     
     /**
@@ -171,9 +166,13 @@ class ViewController: UIViewController {
         set{
             if (newValue != nil) {
                 display.text = "\(newValue!)"
+                if !brain.description.isEmpty {
+                    let ending = brain.isPartialResult ? " ..." : " ="
+                    operationHistoryDisplay!.text = brain.description + ending
+                }
             }
             else {
-                display.text = ""
+                display.text = " "
             }
             userIsTypingANumber = false
         }

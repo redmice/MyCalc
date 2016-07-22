@@ -12,6 +12,8 @@ class CalculatorBrain {
     
     private var accumulator = 0.0
     
+    private var internalProgram = [AnyObject]()
+    
     /**
      Enum type containing either an operand or an operation for the calculator
  
@@ -22,7 +24,7 @@ class CalculatorBrain {
     private enum Op: CustomStringConvertible
     {
         case Constant(Double)
-        case UnaryOperation (String, Double->Double, Double->String)
+        case UnaryOperation (String, Double->Double, String->String)
         case BinaryOperation (String, (Double, Double)->Double, (String, String)->String)
         case Equals
         
@@ -84,6 +86,7 @@ class CalculatorBrain {
     */
     func setOperand (operand: Double) {
         accumulator = operand
+        internalProgram.append(operand)
         newOperandEntered = true
     }
     
@@ -93,30 +96,27 @@ class CalculatorBrain {
      */
 
     func performOperation (symbol: String) {
+        internalProgram.append(symbol)
         if let operation = knownOperations[symbol] {
             switch operation {
             case .Constant(let value):
-                setOperand(value)
-                displayBuffer += symbol + " "
-            case .UnaryOperation(_, let function, let formatter):
-                displayBuffer += formatter (accumulator)
+                accumulator = value
+                newOperandEntered = true
+            case .UnaryOperation(_, let function, _):
                 accumulator = function(accumulator)
-            case .BinaryOperation(_, let function, let formatter):
-                isPartialResult = true
+            case .BinaryOperation(_, let function, _):
                 if newOperandEntered {          //New operand available, regular process
                     executePendingOperation()
-                    pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator, formatFunction: formatter)
+                    pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator)
                     newOperandEntered = false
                 }
                 else {                          //No new operand introduced, the user changed mind and press another operation button
                     if pendingOperation != nil {
                         pendingOperation!.binaryFunction = function     //Just update the operation and keep waiting for the new operand
-                        pendingOperation!.formatFunction = formatter
                     }
                 }
                 
             case .Equals:
-                isPartialResult = false
                 executePendingOperation()
             }
         }
@@ -124,7 +124,6 @@ class CalculatorBrain {
     
     private func executePendingOperation () {
         if pendingOperation != nil {
-            displayBuffer += pendingOperation!.formatFunction("\(pendingOperation!.firstOperand)", "\(accumulator)")
             accumulator = pendingOperation!.binaryFunction(pendingOperation!.firstOperand, accumulator)
             pendingOperation = nil
         }
@@ -138,9 +137,9 @@ class CalculatorBrain {
         accumulator = 0.0
         pendingOperation = nil
         newOperandEntered = false
-        isPartialResult = false
-        displayBuffer = " "
+        displayBlock = " "
         displayPending = ""
+        internalProgram.removeAll()
     }
     
     var result: Double{
@@ -151,18 +150,80 @@ class CalculatorBrain {
     
     var description: String {
         get {
-            return displayBuffer
+            displayBlock = ""
+            evaluateDescription (internalProgram)
+            return displayBlock
         }
     }
+    
+    private func evaluateDescription (history: [AnyObject]) {
+        
+        var remainingHistory = history
+        
+        if !remainingHistory.isEmpty {
+            let op = remainingHistory.removeFirst()
+            
+            if let operand = op as? Double {
+                displayBlock += "\(operand)"
+            } else if let symbol = op as? String {
+                if let operation = knownOperations[symbol] {
+                    switch (operation) {
+                    case .Constant:
+                        displayBlock += symbol
+                    case .UnaryOperation (_, _, let formatter):
+                        displayBlock = formatter("(" + displayBlock + ")")
+                    case .BinaryOperation(_, _, let formatter):
+                        if !remainingHistory.isEmpty {
+                            let op2 = remainingHistory.removeFirst()
+                            if let operand = op2 as? Double {
+                                displayBlock = formatter(displayBlock, "\(operand)")
+                            }
+                        } else {
+                            displayBlock += symbol
+                        }
+                    case .Equals:
+                        displayBlock = "(" + displayBlock + ")"
+                    }
+                }
+            }
+            evaluateDescription(remainingHistory)
+        }
+    }
+    
+    private var displayBlock = ""
+    
+    var isPartialResult: Bool {
+        get {
+            return pendingOperation != nil
+        }
+    }
+    
+    typealias PropertyList = AnyObject
+    
+    var program: PropertyList {
+        get {
+            return internalProgram
+        }
+        set {
+            reset()
+            if let arrayOfOps = newValue as? [AnyObject]{
+                for op in arrayOfOps {
+                    if let operand = op as? Double {
+                        setOperand(operand)
+                    } else if let operation = op as? String {
+                        performOperation(operation)
+                    }
+                }
+            }
+        }
+    }
+    
+    private var pendingOperation: PendingBinaryOperationInfo?
     
     /** 
      True when the user has just entered a new operand
      */
     private var newOperandEntered = false
-    
-    var isPartialResult = false
-    
-    private var pendingOperation: PendingBinaryOperationInfo?
     
     /** 
      Holds the information needed to perform a binary operation, while waiting for the 2nd operand
@@ -170,7 +231,6 @@ class CalculatorBrain {
     private struct PendingBinaryOperationInfo {
         var binaryFunction: (Double, Double) -> Double
         var firstOperand: Double
-        var formatFunction: (String, String) -> String
     }
     
     private var displayBuffer = " "
