@@ -151,69 +151,95 @@ class CalculatorBrain {
     
     var description: String {
         get {
-            displayDescription = ""
-            evaluateDescription ()
-            return displayDescription
+            return evaluateDescription ("", programStack: internalProgram)
         }
     }
     
     private func evaluateDescription () {
-        var currentOperand = ""
+        var rightOperand = ""
         var leftOperand = ""
-        var displayBuffer = ""
+        var whatDescriptionShows = ""
         var binaryFormatter: ((String, String) -> String)?
         var currentPrecedence: UInt8 = 3
-
         
         for op in internalProgram {
             if let operand = op as? Double {
-                currentOperand = "\(operand)"
-                if leftOperand == "" {
-                    leftOperand = currentOperand
-                }
+                binaryFormatter != nil ? (rightOperand = "\(operand)") : (leftOperand = "\(operand)")
             } else if let symbol = op as? String {
                 if let operation = knownOperations[symbol] {
                     switch (operation) {
                     case .Constant:
-                        currentOperand = symbol
+                        binaryFormatter != nil ? (rightOperand = symbol) : (leftOperand = symbol)
                     case .UnaryOperation (_, _, _, let formatter):
-                        currentOperand = formatter (currentOperand)
                         if binaryFormatter != nil {
-                            leftOperand = binaryFormatter! (leftOperand, currentOperand)
+                            rightOperand = formatter (rightOperand)
+                            leftOperand = binaryFormatter! (leftOperand, rightOperand)
                             binaryFormatter = nil
                         }
                         else {
-                            leftOperand = currentOperand
+                            leftOperand = formatter (rightOperand)
                         }
-                        displayBuffer = leftOperand
+                        whatDescriptionShows = leftOperand
                     case .BinaryOperation(let symbol, _, let precedence, let formatter):
-                        
-                        if symbol != "" {
-                            if binaryFormatter != nil {
-                                leftOperand = binaryFormatter! (leftOperand, currentOperand)
-                            }
-                            if currentPrecedence < precedence {
-                                leftOperand = "(" + leftOperand + ")"
-                            }
-                            displayBuffer = leftOperand + " " + symbol
-                            currentPrecedence = precedence
-                            binaryFormatter = formatter
+                        if binaryFormatter != nil {              //Cadena de binary. Aun tengo que averiguar cual es el rightOperand
+                            leftOperand = binaryFormatter! (leftOperand, rightOperand)
                         }
-                        else {
-                            
-                            
+                        if currentPrecedence < precedence {
+                            leftOperand = "(" + leftOperand + ")"
                         }
+                        whatDescriptionShows = leftOperand + " " + symbol
+                        currentPrecedence = precedence
+                        binaryFormatter = formatter
                     case .Equals:
                         if binaryFormatter != nil {
-                            displayBuffer = binaryFormatter!(leftOperand, currentOperand)
+                            whatDescriptionShows = binaryFormatter!(leftOperand, rightOperand)
                             binaryFormatter = nil
                         }
-                        currentOperand = "(" + displayBuffer + ")"
+                        rightOperand = "(" + whatDescriptionShows + ")"
                     }
                 }
             }
         }
-        displayDescription = displayBuffer
+        displayDescription = whatDescriptionShows
+    }
+    
+    private func evaluateDescription (leftOperand: String, programStack: [AnyObject]) -> String {
+        
+        var evaluatedString = leftOperand
+        
+        if !programStack.isEmpty {
+            var remainingOps = programStack
+            let op = remainingOps.removeFirst()
+            if let operand = op as? Double {
+                evaluatedString += evaluateDescription("\(operand)", programStack: remainingOps)
+            } else if let symbol = op as? String {
+                if let operation = knownOperations[symbol] {
+                    switch (operation) {
+                    case .Constant:
+                        evaluatedString += evaluateDescription(symbol, programStack: remainingOps)
+                    case .UnaryOperation (_, _, _, let formatter):
+                        evaluatedString = evaluateDescription (formatter(leftOperand), programStack: remainingOps)
+                    case .BinaryOperation(let symbol, _, let precedence, let formatter):
+                        let rightOperand = evaluateDescription ("", programStack: remainingOps)
+                        if rightOperand != "" {
+                            evaluatedString = formatter (leftOperand, rightOperand)
+                        }
+                        else {
+                            evaluatedString = leftOperand + symbol
+                        }
+//                        if currentPrecedence < precedence {
+//                            leftOperand = "(" + leftOperand + ")"
+//                        }
+//                        whatDescriptionShows = leftOperand + " " + symbol
+//                        currentPrecedence = precedence
+//                        binaryFormatter = formatter
+                    case .Equals:
+                        evaluatedString = evaluateDescription ("(" + leftOperand + ")", programStack: remainingOps)
+                    }
+                }
+            }
+        }
+        return evaluatedString
     }
     
     private var displayDescription = ""
