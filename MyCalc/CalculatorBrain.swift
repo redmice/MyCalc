@@ -24,8 +24,8 @@ class CalculatorBrain {
     private enum Op: CustomStringConvertible
     {
         case Constant(Double)
-        case UnaryOperation (String, Double->Double, String->String)
-        case BinaryOperation (String, (Double, Double)->Double, (String, String)->String)
+        case UnaryOperation (String, Double->Double, UInt8, String->String)
+        case BinaryOperation (String, (Double, Double)->Double, UInt8, (String, String)->String)
         case Equals
         
         var description: String {
@@ -33,9 +33,9 @@ class CalculatorBrain {
                 switch self {
                 case .Constant(let operand):
                     return "\(operand)"
-                case .UnaryOperation (let symbol, _, _):
+                case .UnaryOperation (let symbol, _, _, _):
                     return symbol
-                case .BinaryOperation(let symbol, _, _):
+                case .BinaryOperation(let symbol, _, _, _):
                     return symbol
                 case .Equals:
                     return "="
@@ -58,21 +58,21 @@ class CalculatorBrain {
             knownOperations[op.description] = op
         }
         
-        learnOp(Op.BinaryOperation("×", *) { $0 + " × " + $1 } )
-        learnOp(Op.BinaryOperation("÷", /) { $0  + " ÷ " +  $1 } )
-        learnOp(Op.BinaryOperation("+", +) { $0 + " + " + $1 } )
-        learnOp(Op.BinaryOperation("−", -) { $0 + " − " + $1 } )
-        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }) { $1 + "√ " + $0 })
-        learnOp(Op.UnaryOperation("x²", { pow ( $0, 2 ) }) { "\($0)^2" })
-        learnOp(Op.UnaryOperation("x³", { pow ( $0, 3 ) }) { "\($0)^3" })
-        learnOp(Op.BinaryOperation("xʸ", { pow ( $0, $1 ) }) { $0 + "^" + $1 })
+        learnOp(Op.BinaryOperation("×", *, 3) { $0 + " × " + $1 } )
+        learnOp(Op.BinaryOperation("÷", /, 3) { $0  + " ÷ " +  $1 } )
+        learnOp(Op.BinaryOperation("+", +, 2) { $0 + " + " + $1 } )
+        learnOp(Op.BinaryOperation("−", -, 2) { $0 + " − " + $1 } )
+        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }, 1) { $1 + "√" + "(" + $0 + ")"})
+        learnOp(Op.UnaryOperation("x²", { pow ( $0, 2 ) }, 1) { "(\($0))^2" })
+        learnOp(Op.UnaryOperation("x³", { pow ( $0, 3 ) }, 1) { "\(($0))^3" })
+        learnOp(Op.BinaryOperation("xʸ", { pow ( $0, $1 ) }, 1) { $0 + "^" + $1 })
         
-        learnOp(Op.UnaryOperation("√", sqrt) { "√\($0)" })
-        learnOp(Op.UnaryOperation("∛", { pow ( $0, 1/3 ) }) { "3√\($0)" })
-        learnOp(Op.UnaryOperation("cos", cos) { "cos(\($0))" })
-        learnOp(Op.UnaryOperation("sin", sin) { "sin(\($0))" })
-        learnOp(Op.UnaryOperation("tan", tan) { "cos(\($0))" })
-        learnOp(Op.UnaryOperation("⁺/₋", { -$0} ) { "-(\($0))" })
+        learnOp(Op.UnaryOperation("√", sqrt, 1) { "√\($0)" })
+        learnOp(Op.UnaryOperation("∛", { pow ( $0, 1/3 ) }, 1) { "3√(\($0))" })
+        learnOp(Op.UnaryOperation("cos", cos, 1) { "cos(\($0))" })
+        learnOp(Op.UnaryOperation("sin", sin, 1) { "sin(\($0))" })
+        learnOp(Op.UnaryOperation("tan", tan, 1) { "cos(\($0))" })
+        learnOp(Op.UnaryOperation("⁺/₋", { -$0}, 1) { "-(\($0))" })
         
         knownOperations["="] = Op.Equals
         
@@ -102,9 +102,10 @@ class CalculatorBrain {
             case .Constant(let value):
                 accumulator = value
                 newOperandEntered = true
-            case .UnaryOperation(_, let function, _):
+            case .UnaryOperation(_, let function, _, _):
                 accumulator = function(accumulator)
-            case .BinaryOperation(_, let function, _):
+                //setOperand(accumulator)
+            case .BinaryOperation(_, let function, _, _):
                 if newOperandEntered {          //New operand available, regular process
                     executePendingOperation()
                     pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator)
@@ -137,7 +138,7 @@ class CalculatorBrain {
         accumulator = 0.0
         pendingOperation = nil
         newOperandEntered = false
-        displayBlock = " "
+        displayDescription = " "
         displayPending = ""
         internalProgram.removeAll()
     }
@@ -150,47 +151,72 @@ class CalculatorBrain {
     
     var description: String {
         get {
-            displayBlock = ""
-            evaluateDescription (internalProgram)
-            return displayBlock
+            displayDescription = ""
+            evaluateDescription ()
+            return displayDescription
         }
     }
     
-    private func evaluateDescription (history: [AnyObject]) {
+    private func evaluateDescription () {
+        var currentOperand = ""
+        var leftOperand = ""
+        var displayBuffer = ""
+        var binaryFormatter: ((String, String) -> String)?
+        var currentPrecedence: UInt8 = 3
+
         
-        var remainingHistory = history
-        
-        if !remainingHistory.isEmpty {
-            let op = remainingHistory.removeFirst()
-            
+        for op in internalProgram {
             if let operand = op as? Double {
-                displayBlock += "\(operand)"
+                currentOperand = "\(operand)"
+                if leftOperand == "" {
+                    leftOperand = currentOperand
+                }
             } else if let symbol = op as? String {
                 if let operation = knownOperations[symbol] {
                     switch (operation) {
                     case .Constant:
-                        displayBlock += symbol
-                    case .UnaryOperation (_, _, let formatter):
-                        displayBlock = formatter("(" + displayBlock + ")")
-                    case .BinaryOperation(_, _, let formatter):
-                        if !remainingHistory.isEmpty {
-                            let op2 = remainingHistory.removeFirst()
-                            if let operand = op2 as? Double {
-                                displayBlock = formatter(displayBlock, "\(operand)")
+                        currentOperand = symbol
+                    case .UnaryOperation (_, _, _, let formatter):
+                        currentOperand = formatter (currentOperand)
+                        if binaryFormatter != nil {
+                            leftOperand = binaryFormatter! (leftOperand, currentOperand)
+                            binaryFormatter = nil
+                        }
+                        else {
+                            leftOperand = currentOperand
+                        }
+                        displayBuffer = leftOperand
+                    case .BinaryOperation(let symbol, _, let precedence, let formatter):
+                        
+                        if symbol != "" {
+                            if binaryFormatter != nil {
+                                leftOperand = binaryFormatter! (leftOperand, currentOperand)
                             }
-                        } else {
-                            displayBlock += symbol
+                            if currentPrecedence < precedence {
+                                leftOperand = "(" + leftOperand + ")"
+                            }
+                            displayBuffer = leftOperand + " " + symbol
+                            currentPrecedence = precedence
+                            binaryFormatter = formatter
+                        }
+                        else {
+                            
+                            
                         }
                     case .Equals:
-                        displayBlock = "(" + displayBlock + ")"
+                        if binaryFormatter != nil {
+                            displayBuffer = binaryFormatter!(leftOperand, currentOperand)
+                            binaryFormatter = nil
+                        }
+                        currentOperand = "(" + displayBuffer + ")"
                     }
                 }
             }
-            evaluateDescription(remainingHistory)
         }
+        displayDescription = displayBuffer
     }
     
-    private var displayBlock = ""
+    private var displayDescription = ""
     
     var isPartialResult: Bool {
         get {
