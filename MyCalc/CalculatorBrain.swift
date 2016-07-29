@@ -25,7 +25,7 @@ class CalculatorBrain {
     {
         case Constant(Double)
         case UnaryOperation (String, Double->Double, UInt8, String->String)
-        case BinaryOperation (String, (Double, Double)->Double, UInt8, (String, String)->String)
+        case BinaryOperation (String, (Double, Double)->Double, UInt8, (String, String)->String, Bool)
         case Equals
         
         var description: String {
@@ -35,7 +35,7 @@ class CalculatorBrain {
                     return "\(operand)"
                 case .UnaryOperation (let symbol, _, _, _):
                     return symbol
-                case .BinaryOperation(let symbol, _, _, _):
+                case .BinaryOperation(let symbol, _, _, _, _):
                     return symbol
                 case .Equals:
                     return "="
@@ -58,15 +58,15 @@ class CalculatorBrain {
             knownOperations[op.description] = op
         }
         
-        learnOp(Op.BinaryOperation("×", *, 3) { $0 + " × " + $1 } )
-        learnOp(Op.BinaryOperation("÷", /, 3) { $0  + " ÷ " +  $1 } )
-        learnOp(Op.BinaryOperation("+", +, 2) { $0 + " + " + $1 } )
-        learnOp(Op.BinaryOperation("−", -, 2) { $0 + " − " + $1 } )
-        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }, 1) { $1 + "√" + "(" + $0 + ")"})
+        learnOp(Op.BinaryOperation("×", *, 3, { $0 + " × " + $1 }, true ))
+        learnOp(Op.BinaryOperation("÷", /, 3, { $0  + " ÷ " +  $1 }, true ))
+        learnOp(Op.BinaryOperation("+", +, 2, { $0 + " + " + $1 }, true ))
+        learnOp(Op.BinaryOperation("−", -, 2, { $0 + " − " + $1 }, true ))
+        learnOp(Op.BinaryOperation("ʸ√", { pow ( $0, 1/$1 ) }, 1, { $1 + "√" + "(" + $0 + ")"}, false))
+        learnOp(Op.BinaryOperation("xʸ", { pow ( $0, $1 ) }, 1, { $0 + "^" + $1 }, false))
+        
         learnOp(Op.UnaryOperation("x²", { pow ( $0, 2 ) }, 1) { "(\($0))^2" })
         learnOp(Op.UnaryOperation("x³", { pow ( $0, 3 ) }, 1) { "\(($0))^3" })
-        learnOp(Op.BinaryOperation("xʸ", { pow ( $0, $1 ) }, 1) { $0 + "^" + $1 })
-        
         learnOp(Op.UnaryOperation("√", sqrt, 1) { "√\($0)" })
         learnOp(Op.UnaryOperation("∛", { pow ( $0, 1/3 ) }, 1) { "3√(\($0))" })
         learnOp(Op.UnaryOperation("cos", cos, 1) { "cos(\($0))" })
@@ -105,7 +105,7 @@ class CalculatorBrain {
             case .UnaryOperation(_, let function, _, _):
                 accumulator = function(accumulator)
                 //setOperand(accumulator)
-            case .BinaryOperation(_, let function, _, _):
+            case .BinaryOperation(_, let function, _, _, _):
                 if newOperandEntered {          //New operand available, regular process
                     executePendingOperation()
                     pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator)
@@ -114,9 +114,10 @@ class CalculatorBrain {
                 else {                          //No new operand introduced, the user changed mind and press another operation button
                     if pendingOperation != nil {
                         pendingOperation!.binaryFunction = function     //Just update the operation and keep waiting for the new operand
+                        internalProgram.removeLast()
+                        internalProgram.append(symbol)
                     }
                 }
-                
             case .Equals:
                 executePendingOperation()
             }
@@ -138,7 +139,7 @@ class CalculatorBrain {
         accumulator = 0.0
         pendingOperation = nil
         newOperandEntered = false
-        displayDescription = " "
+        displayDescriptionStack = " "
         displayPending = ""
         internalProgram.removeAll()
     }
@@ -151,96 +152,73 @@ class CalculatorBrain {
     
     var description: String {
         get {
-            return evaluateDescription ("", programStack: internalProgram)
+            displayDescriptionStack = ""
+            pendingDescription = nil
+            evaluateDescription ("", programStack: internalProgram)
+            return displayDescription
         }
     }
     
-    private func evaluateDescription () {
-        var rightOperand = ""
-        var leftOperand = ""
-        var whatDescriptionShows = ""
-        var binaryFormatter: ((String, String) -> String)?
-        var currentPrecedence: UInt8 = 3
-        
-        for op in internalProgram {
-            if let operand = op as? Double {
-                binaryFormatter != nil ? (rightOperand = "\(operand)") : (leftOperand = "\(operand)")
-            } else if let symbol = op as? String {
-                if let operation = knownOperations[symbol] {
-                    switch (operation) {
-                    case .Constant:
-                        binaryFormatter != nil ? (rightOperand = symbol) : (leftOperand = symbol)
-                    case .UnaryOperation (_, _, _, let formatter):
-                        if binaryFormatter != nil {
-                            rightOperand = formatter (rightOperand)
-                            leftOperand = binaryFormatter! (leftOperand, rightOperand)
-                            binaryFormatter = nil
-                        }
-                        else {
-                            leftOperand = formatter (rightOperand)
-                        }
-                        whatDescriptionShows = leftOperand
-                    case .BinaryOperation(let symbol, _, let precedence, let formatter):
-                        if binaryFormatter != nil {              //Cadena de binary. Aun tengo que averiguar cual es el rightOperand
-                            leftOperand = binaryFormatter! (leftOperand, rightOperand)
-                        }
-                        if currentPrecedence < precedence {
-                            leftOperand = "(" + leftOperand + ")"
-                        }
-                        whatDescriptionShows = leftOperand + " " + symbol
-                        currentPrecedence = precedence
-                        binaryFormatter = formatter
-                    case .Equals:
-                        if binaryFormatter != nil {
-                            whatDescriptionShows = binaryFormatter!(leftOperand, rightOperand)
-                            binaryFormatter = nil
-                        }
-                        rightOperand = "(" + whatDescriptionShows + ")"
-                    }
-                }
-            }
-        }
-        displayDescription = whatDescriptionShows
-    }
+    private var currentPrecedence: UInt8 = 3
     
     private func evaluateDescription (leftOperand: String, programStack: [AnyObject]) -> String {
         
-        var evaluatedString = leftOperand
+        var OperandString = leftOperand
         
         if !programStack.isEmpty {
             var remainingOps = programStack
             let op = remainingOps.removeFirst()
             if let operand = op as? Double {
-                evaluatedString += evaluateDescription("\(operand)", programStack: remainingOps)
+                evaluateDescription("\(operand)", programStack: remainingOps)
             } else if let symbol = op as? String {
                 if let operation = knownOperations[symbol] {
                     switch (operation) {
                     case .Constant:
-                        evaluatedString += evaluateDescription(symbol, programStack: remainingOps)
+                        evaluateDescription(symbol, programStack: remainingOps)
                     case .UnaryOperation (_, _, _, let formatter):
-                        evaluatedString = evaluateDescription (formatter(leftOperand), programStack: remainingOps)
-                    case .BinaryOperation(let symbol, _, let precedence, let formatter):
-                        let rightOperand = evaluateDescription ("", programStack: remainingOps)
-                        if rightOperand != "" {
-                            evaluatedString = formatter (leftOperand, rightOperand)
+                        evaluateDescription (formatter(leftOperand), programStack: remainingOps)
+                    case .BinaryOperation(let symbol, _, let precedence, let formatter, let leftRightEvaluation):
+                        var op1 = ""
+                        var op2 = ""
+                        if pendingDescription != nil {
+                            if leftRightEvaluation {
+                                if  currentPrecedence < precedence {
+                                    op1 = "(" + displayDescriptionStack + pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand) + ")"
+                                    displayDescription = formatter (op1, op2)
+                                    displayDescriptionStack = ""
+                                }
+                                else {
+                                    displayDescriptionStack += pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand)
+                                    displayDescription = formatter (displayDescriptionStack, op2)
+                                    op1 = leftOperand
+                                }
+                            }
+                            else {
+                                op1 = leftOperand
+                                op2 = "_"
+                                displayDescription = displayDescriptionStack + formatter (op1, op2)
+                            }
                         }
                         else {
-                            evaluatedString = leftOperand + symbol
+                            op1 = leftOperand
+                            displayDescription = displayDescriptionStack + formatter (op1, op2)
+                            
                         }
-//                        if currentPrecedence < precedence {
-//                            leftOperand = "(" + leftOperand + ")"
-//                        }
-//                        whatDescriptionShows = leftOperand + " " + symbol
-//                        currentPrecedence = precedence
-//                        binaryFormatter = formatter
+                        currentPrecedence = precedence
+                        pendingDescription = PendingBinaryDescriptionInfo (firstOperand: op1, secondOperand: op2, BinaryFunction: formatter)
+                        
+                        evaluateDescription ("", programStack: remainingOps)
                     case .Equals:
-                        evaluatedString = evaluateDescription ("(" + leftOperand + ")", programStack: remainingOps)
+                        displayDescriptionStack += leftOperand
+                        evaluateDescription ("(" + displayDescriptionStack + ")", programStack: remainingOps)
                     }
                 }
             }
         }
-        return evaluatedString
+        return OperandString
     }
+    
+    private var displayDescriptionStack = ""
     
     private var displayDescription = ""
     
@@ -271,6 +249,7 @@ class CalculatorBrain {
     }
     
     private var pendingOperation: PendingBinaryOperationInfo?
+    private var pendingDescription: PendingBinaryDescriptionInfo?
     
     /** 
      True when the user has just entered a new operand
@@ -283,6 +262,12 @@ class CalculatorBrain {
     private struct PendingBinaryOperationInfo {
         var binaryFunction: (Double, Double) -> Double
         var firstOperand: Double
+    }
+    
+    private struct PendingBinaryDescriptionInfo {
+        var firstOperand: String
+        var secondOperand: String
+        var BinaryFunction: (String, String) -> String
     }
     
     private var displayBuffer = " "

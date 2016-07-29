@@ -166,9 +166,10 @@ class ViewController: UIViewController {
         set{
             if (newValue != nil) {
                 display.text = "\(newValue!)"
-                if !brain.description.isEmpty {
+                let description = brain.description
+                if !description.isEmpty {
                     let ending = brain.isPartialResult ? " ...":" ="
-                    operationHistoryDisplay!.text = brain.description + ending
+                    operationHistoryDisplay!.text = description + ending
                 }
             }
             else {
