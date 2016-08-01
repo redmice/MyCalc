@@ -96,7 +96,7 @@ class CalculatorBrain {
      */
 
     func performOperation (symbol: String) {
-        internalProgram.append(symbol)
+        
         if let operation = knownOperations[symbol] {
             switch operation {
             case .Constant(let value):
@@ -115,13 +115,13 @@ class CalculatorBrain {
                     if pendingOperation != nil {
                         pendingOperation!.binaryFunction = function     //Just update the operation and keep waiting for the new operand
                         internalProgram.removeLast()
-                        internalProgram.append(symbol)
                     }
                 }
             case .Equals:
                 executePendingOperation()
             }
         }
+        internalProgram.append(symbol)
     }
     
     private func executePendingOperation () {
@@ -139,8 +139,9 @@ class CalculatorBrain {
         accumulator = 0.0
         pendingOperation = nil
         newOperandEntered = false
-        displayDescriptionStack = " "
-        displayPending = ""
+        displayDescriptionStack = ""
+        displayDescription = " "
+        pendingDescription = nil
         internalProgram.removeAll()
     }
     
@@ -176,41 +177,53 @@ class CalculatorBrain {
                     case .Constant:
                         evaluateDescription(symbol, programStack: remainingOps)
                     case .UnaryOperation (_, _, _, let formatter):
-                        evaluateDescription (formatter(leftOperand), programStack: remainingOps)
-                    case .BinaryOperation(let symbol, _, let precedence, let formatter, let leftRightEvaluation):
-                        var op1 = ""
-                        var op2 = ""
+                        let op = formatter (leftOperand)
+                        if pendingDescription != nil {
+                            displayDescriptionStack = pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, op)
+                            pendingDescription = nil
+                        }
+                        else {
+                            displayDescriptionStack = op
+                        }
+                        displayDescription = displayDescriptionStack
+                        evaluateDescription (displayDescriptionStack, programStack: remainingOps)
+                    case .BinaryOperation(_, _, let precedence, let formatter, let leftRightEvaluation):
                         if pendingDescription != nil {
                             if leftRightEvaluation {
                                 if  currentPrecedence < precedence {
-                                    op1 = "(" + displayDescriptionStack + pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand) + ")"
-                                    displayDescription = formatter (op1, op2)
-                                    displayDescriptionStack = ""
+                                    displayDescriptionStack = "(" + pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand) + ")"
+                                    displayDescription = formatter (displayDescriptionStack, "")
                                 }
                                 else {
-                                    displayDescriptionStack += pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand)
-                                    displayDescription = formatter (displayDescriptionStack, op2)
-                                    op1 = leftOperand
+                                    displayDescriptionStack = pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand)
+                                    displayDescription = formatter (displayDescriptionStack, "")
                                 }
                             }
                             else {
-                                op1 = leftOperand
-                                op2 = "_"
-                                displayDescription = displayDescriptionStack + formatter (op1, op2)
+                                displayDescription = pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, formatter (leftOperand, "_"))
+                                
                             }
                         }
                         else {
-                            op1 = leftOperand
-                            displayDescription = displayDescriptionStack + formatter (op1, op2)
+                            displayDescriptionStack = leftOperand
+                            displayDescription = formatter (displayDescriptionStack, "")
                             
                         }
                         currentPrecedence = precedence
-                        pendingDescription = PendingBinaryDescriptionInfo (firstOperand: op1, secondOperand: op2, BinaryFunction: formatter)
+                        pendingDescription = PendingBinaryDescriptionInfo (firstOperand: displayDescriptionStack, secondOperand: "", BinaryFunction: formatter)
                         
                         evaluateDescription ("", programStack: remainingOps)
                     case .Equals:
-                        displayDescriptionStack += leftOperand
-                        evaluateDescription ("(" + displayDescriptionStack + ")", programStack: remainingOps)
+                        if pendingDescription != nil {
+                            displayDescription = pendingDescription!.BinaryFunction (pendingDescription!.firstOperand, leftOperand)
+                            pendingDescription = nil
+                        }
+                            
+                        else {
+                            displayDescription += leftOperand
+                        }
+                        displayDescriptionStack = "(" + displayDescription + ")"
+                        evaluateDescription (displayDescriptionStack, programStack: remainingOps)
                     }
                 }
             }
