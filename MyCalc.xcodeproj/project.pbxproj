@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0FA9D23B1D50D8FA00248F0E /* BinaryTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA9D23A1D50D8FA00248F0E /* BinaryTree.swift */; };
 		9D1FA83A1D27FC5C00DD5BA7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D1FA8391D27FC5C00DD5BA7 /* AppDelegate.swift */; };
 		9D1FA83C1D27FC5C00DD5BA7 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D1FA83B1D27FC5C00DD5BA7 /* ViewController.swift */; };
 		9D1FA83F1D27FC5C00DD5BA7 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9D1FA83D1D27FC5C00DD5BA7 /* Main.storyboard */; };
@@ -16,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0FA9D23A1D50D8FA00248F0E /* BinaryTree.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BinaryTree.swift; sourceTree = "<group>"; };
 		9D1FA8361D27FC5B00DD5BA7 /* MyCalc.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyCalc.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D1FA8391D27FC5C00DD5BA7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9D1FA83B1D27FC5C00DD5BA7 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 				9D888FEA1D343F2F004A42AD /* SupportingFiles */,
 				9D1FA83B1D27FC5C00DD5BA7 /* ViewController.swift */,
 				9D8B15F41D315CB400699A7E /* CalculatorBrain.swift */,
+				0FA9D23A1D50D8FA00248F0E /* BinaryTree.swift */,
 				9D1FA83D1D27FC5C00DD5BA7 /* Main.storyboard */,
 			);
 			path = MyCalc;
@@ -147,6 +150,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0FA9D23B1D50D8FA00248F0E /* BinaryTree.swift in Sources */,
 				9D8B15F51D315CB400699A7E /* CalculatorBrain.swift in Sources */,
 				9D1FA83C1D27FC5C00DD5BA7 /* ViewController.swift in Sources */,
 				9D1FA83A1D27FC5C00DD5BA7 /* AppDelegate.swift in Sources */,

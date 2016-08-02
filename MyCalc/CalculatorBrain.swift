@@ -87,6 +87,7 @@ class CalculatorBrain {
     func setOperand (operand: Double) {
         accumulator = operand
         internalProgram.append(operand)
+        accumulatorLeave.updateValue("\(accumulator)")
         newOperandEntered = true
     }
     
@@ -96,26 +97,37 @@ class CalculatorBrain {
      */
 
     func performOperation (symbol: String) {
-        
         if let operation = knownOperations[symbol] {
             switch operation {
             case .Constant(let value):
                 accumulator = value
+                accumulatorLeave.updateValue(symbol)      //We want to print the constant symbol, not the value
                 newOperandEntered = true
             case .UnaryOperation(_, let function, _, _):
+                currentSubTree.addNode(accumulatorLeave)
+                currentSubTree.updateValue(symbol)
+                if expressionTree != nil {
+                    expressionTree = currentSubTree
+                }
+                else {
+                    expressionTree!.addNode(currentSubTree)
+                }
+                currentSubTree = BinaryTree.Empty
                 accumulator = function(accumulator)
                 //setOperand(accumulator)
             case .BinaryOperation(_, let function, _, _, _):
-                if newOperandEntered {          //New operand available, regular process
-                    executePendingOperation()
+                if newOperandEntered {          //Operation pressed right after operand: regular process
+                    executePendingOperation()   //TODO: Handle insertion in the tree inside executePendingOperation?
                     pendingOperation = PendingBinaryOperationInfo(binaryFunction: function, firstOperand: accumulator)
                     newOperandEntered = false
+                    currentSubTree = BinaryTree.Node(accumulatorLeave, symbol, .Empty)
                 }
                 else {                          //No new operand introduced, the user changed mind and press another operation button
                     if pendingOperation != nil {
                         pendingOperation!.binaryFunction = function     //Just update the operation and keep waiting for the new operand
                         internalProgram.removeLast()
                     }
+                    currentSubTree.updateValue(symbol)
                 }
             case .Equals:
                 executePendingOperation()
@@ -285,4 +297,9 @@ class CalculatorBrain {
     
     private var displayBuffer = " "
     private var displayPending = ""
+    
+    private var expressionTree: BinaryTree<String>?
+    private var accumulatorLeave = BinaryTree.Node(.Empty, "", .Empty)
+    private var currentSubTree = BinaryTree.Node(.Empty, "", .Empty)
+    
 }
